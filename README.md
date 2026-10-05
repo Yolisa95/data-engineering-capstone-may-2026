@@ -2,103 +2,141 @@
 
 ## Overview
 
-The Customer 360 project is an end-to-end data engineering solution for a fictional retail bank. The project transforms a raw banking activity extract into a dimensional data warehouse that supports analysis across customers, products, transactions, and CRM interactions.
+The **Customer 360 Data Engineering Project** is an end-to-end data engineering solution for a fictional retail bank. The project transforms a raw banking activity extract into a structured dimensional data warehouse for customer, product, transaction, and CRM analysis.
 
-The solution was developed using **SQL Server, SSIS, SSMS, Visual Studio/SSDT, SQL, and draw.io**.
+The project follows a **Medallion Architecture**, where data moves through **Bronze, Silver, and Gold layers**. This approach separates raw data ingestion, data preparation, and business-ready analytical data.
 
-The source file contains three types of customer activity:
+The source contains three main types of customer activity:
 
 - Product Enrollment
 - CRM Interaction
 - Transaction
 
-These events are loaded into a raw landing layer, separated into staging tables, cleaned and transformed, and then loaded into the dimensional data warehouse.
+The solution was developed using **Microsoft SQL Server, SQL Server Integration Services (SSIS), SQL Server Management Studio (SSMS), Visual Studio/SSDT, SQL, and draw.io**.
 
 ---
 
 ## Architecture
 
-The project follows a layered architecture:
+The project uses a **Medallion Architecture** consisting of three layers:
+
+### Bronze Layer — Raw / Landing
+
+The Bronze layer stores the raw source data with minimal transformation.
+
+**Source:**
+
+`data/raw/activity_extract.csv`
+
+**Landing table:**
+
+`stg_customer360.dbo.stg_activity_extract`
+
+The purpose of this layer is to preserve the original source data for profiling, validation, and troubleshooting.
+
+### Silver Layer — Staging / Transformation
+
+The Silver layer separates and prepares the raw data for the dimensional warehouse.
+
+The staging tables are:
+
+- `stg_dim_client`
+- `stg_dim_product`
+- `stg_fact_transaction`
+- `stg_fact_crm_interaction`
+
+The `event_type` field is used to separate **Product Enrollment**, **CRM Interaction**, and **Transaction** records.
+
+The Silver layer performs preparation such as:
+
+- Trimming whitespace
+- Handling blank and NULL values
+- Standardising values
+- Converting data types
+- Deduplicating customer records
+- Deduplicating CRM interactions
+- Preparing records for dimension and fact loading
+
+### Gold Layer — Dimensional Data Warehouse
+
+The Gold layer contains the final business-ready dimensional model.
+
+**Dimensions:**
+
+- `dim_client`
+- `dim_date`
+- `dim_product`
+
+**Fact tables:**
+
+- `fact_transaction`
+- `fact_crm_interaction`
+
+The Gold layer is used to answer the Customer 360 business questions and perform customer, product, transaction, CRM, and segmentation analysis.
+
+### Architecture Flow
 
 ```text
 activity_extract.csv
         |
         v
-Raw / Landing Layer
-stg_activity_extract
++----------------------------------+
+| BRONZE                           |
+| Raw / Landing                    |
+|                                  |
+| stg_activity_extract             |
++----------------------------------+
         |
         v
-Staging Layer
-stg_dim_client
-stg_dim_product
-stg_fact_transaction
-stg_fact_crm_interaction
++----------------------------------+
+| SILVER                           |
+| Staging / Transformation         |
+|                                  |
+| stg_dim_client                   |
+| stg_dim_product                  |
+| stg_fact_transaction             |
+| stg_fact_crm_interaction         |
++----------------------------------+
         |
         v
-Cleaning & Transformation
++----------------------------------+
+| GOLD                             |
+| Dimensional Data Warehouse       |
+|                                  |
+| dim_client                       |
+| dim_date                         |
+| dim_product                      |
+| fact_transaction                 |
+| fact_crm_interaction             |
++----------------------------------+
         |
         v
-Dimensional Data Warehouse
-dim_client
-dim_date
-dim_product
-fact_transaction
-fact_crm_interaction
-        |
-        v
-Business Analysis
++----------------------------------+
+| BUSINESS ANALYSIS                |
+|                                  |
+| Customer Analysis                |
+| Product Analysis                 |
+| Transaction Analysis             |
+| CRM Analysis                     |
+| Customer Segmentation            |
++----------------------------------+
 ```
-
-### Raw / Landing Layer
-
-The raw banking extract is first loaded into:
-
-```text
-stg_customer360.dbo.stg_activity_extract
-```
-
-The purpose of this layer is to preserve the source data with minimal transformation before cleaning and modelling.
-
-### Staging Layer
-
-The staging layer separates the source data into the main business entities and processes:
-
-```text
-stg_dim_client
-stg_dim_product
-stg_fact_transaction
-stg_fact_crm_interaction
-```
-
-The source `event_type` is used to separate Product Enrollment, CRM Interaction, and Transaction records.
-
-### Dimensional Data Warehouse
-
-The final warehouse contains three dimensions and two fact tables:
-
-**Dimensions**
-- `dim_client`
-- `dim_date`
-- `dim_product`
-
-**Facts**
-- `fact_transaction`
-- `fact_crm_interaction`
-
-Transactions and CRM interactions are stored in separate fact tables because they represent different business processes and have different grains.
 
 ---
 
 ## Dimensional Model
 
-The dimensional model is structured around the following tables:
+The Gold layer uses a **fact constellation / galaxy schema** because the model contains multiple fact tables that share common dimensions.
 
 ### `dim_client`
 
-Contains one row per customer and includes customer details such as:
+Contains one row per customer.
+
+Main attributes include:
 
 - Client number
-- Name
+- First name
+- Last name
 - Email
 - Mobile number
 - Date of birth
@@ -107,13 +145,13 @@ Contains one row per customer and includes customer details such as:
 - City
 - Signup date
 
-A surrogate `client_key` is used in the warehouse.
+A surrogate `client_key` is used in the warehouse, while `client_number` is retained as the source business key.
 
-The client dimension follows a **Type 1 SCD approach**, as the project focuses on the current customer view rather than maintaining historical versions of customer attributes.
+The client dimension follows a **Type 1 Slowly Changing Dimension (SCD)** approach because the project focuses on the current customer view rather than maintaining historical versions of customer attributes.
 
 ### `dim_date`
 
-Provides standard calendar attributes including:
+Contains calendar attributes used for time-based analysis, including:
 
 - Full date
 - Day
@@ -123,11 +161,9 @@ Provides standard calendar attributes including:
 - Year
 - Day of week
 
-The transaction and CRM fact tables reference the date dimension using `date_key`.
-
 ### `dim_product`
 
-Contains product and account information including:
+Contains account and product information, including:
 
 - Account number
 - Product type
@@ -136,7 +172,7 @@ Contains product and account information including:
 - Loan amount
 - Account balance
 
-A surrogate `product_key` is used to link products to transaction activity.
+A surrogate `product_key` is used for warehouse relationships.
 
 ### `fact_transaction`
 
@@ -163,15 +199,15 @@ Contains:
 - Interaction type
 - Resolved flag
 
-The two fact tables share common dimensions where appropriate, providing a consistent Customer 360 view.
+Transactions and CRM interactions are stored in separate fact tables because they represent different business processes and have different grains.
 
 ---
 
 ## ETL Process
 
-The ETL process was developed using **SQL Server Integration Services (SSIS)**.
+The ETL pipeline was developed using **SQL Server Integration Services (SSIS)**.
 
-The solution contains the following packages:
+The solution contains four main packages:
 
 ```text
 01_load_raw_activity_extract.dtsx
@@ -180,38 +216,41 @@ The solution contains the following packages:
 04_master_package.dtsx
 ```
 
-The master package controls the execution order:
+The master package controls the complete pipeline:
 
 ```text
-Load Raw Data
-      |
-      v
-Create / Load Staging
-      |
-      v
-Create / Load Data Warehouse
+01_load_raw_activity_extract.dtsx
+              |
+              v
+        BRONZE LAYER
+        Raw / Landing
+              |
+              v
+02_create_load_stg_tables.dtsx
+              |
+              v
+        SILVER LAYER
+   Staging / Transformation
+              |
+              v
+03_create_load_dwh_tables.dtsx
+              |
+              v
+         GOLD LAYER
+ Dimensional Data Warehouse
 ```
 
+`04_master_package.dtsx` provides a single entry point for running the complete ETL process.
+
 Dimensions are loaded before the fact tables so that the required surrogate keys are available when fact records are inserted.
-
-The ETL process performs transformations such as:
-
-- Trimming whitespace
-- Handling blank and NULL values
-- Converting data types
-- Standardising text values
-- Deduplicating customer records
-- Deduplicating CRM interactions
-- Performing dimension key lookups
-- Handling unmatched product records
 
 ---
 
 ## Data Quality
 
-The raw source contained **21,500 activity records** across **1,484 distinct clients**.
+Source data profiling was completed before loading the dimensional model.
 
-The source consisted of:
+The source contains **21,500 activity records** across **1,484 distinct clients**.
 
 | Event Type | Records |
 |---|---:|
@@ -220,44 +259,58 @@ The source consisted of:
 | Product Enrollment | 2,000 |
 | **Total** | **21,500** |
 
-Source profiling identified several data quality issues, including:
+The main data quality findings included:
 
 - Missing email addresses
 - Missing mobile numbers
 - Missing or unknown gender values
-- Repeated customer information across activity rows
+- Repeated customer information across activity records
 - One exact duplicate CRM interaction
 - Transaction accounts without corresponding Product Enrollment records
 - Positive, negative, and zero transaction amounts
 
-The ETL process was designed to preserve valid business activity rather than remove records unnecessarily.
+The ETL process preserves valid business activity where possible.
 
-Customers are deduplicated using `client_number`, the duplicate CRM interaction is removed, blank values are handled appropriately, and unmatched transaction accounts can be linked to an **Unknown Product** member.
+Customers are deduplicated using `client_number`. The exact duplicate CRM interaction is removed to prevent double counting. Transactions without a matching Product Enrollment record are retained rather than discarded and can be associated with an **Unknown Product** member.
 
-A detailed discussion of the findings and handling decisions is included in the project data quality document.
+Detailed data quality findings and handling decisions are documented in:
+
+`docs/customer360_data_quality_writeup.docx`
 
 ---
 
 ## Business Analysis
 
-The dimensional warehouse is used to answer the supplied Customer 360 business questions.
+The Gold layer is used to answer the Customer 360 business questions.
 
 The analysis covers:
 
-- Customer distribution and demographics
+- Customer distribution by province
+- Customer age distribution
 - Customer signup trends
-- Product holdings
-- Cross-selling opportunities
-- Account balances and credit utilisation
-- Transaction trends and channel usage
+- Customer data quality
+- Product holdings and cross-holding
+- Account balances
+- Cross-sell opportunities
+- Credit Card utilisation
+- Monthly transaction activity
+- Transaction channel usage
 - Active and inactive customers
-- CRM interactions and resolution rates
+- Top customers by transaction value
+- CRM interaction activity
+- Complaint channels
+- Resolution rates
 - Customer value segmentation
 - Customer lifecycle segmentation
-- Customer retention
-- Unusual transaction activity
+- CRM engagement compared with transaction value
+- Month-over-month retention
+- Unusual transaction patterns
 
-The analysis is performed against the dimensional model rather than the raw or staging data.
+The SQL queries include the corresponding results and interpretations as comments in the code.
+
+The business analysis is available in:
+
+`sql/10_business_questions.sql`
 
 ---
 
@@ -265,63 +318,92 @@ The analysis is performed against the dimensional model rather than the raw or s
 
 ```text
 data-engineering-capstone-may-2026/
-|
-|-- data/
-|   `-- raw/
-|       `-- activity_extract.csv
-|
-|-- docs/
-|   |-- BusinessQuestions_and_Answers.docx
-|   |-- customer360_data_quality_writeup.docx
-|   |-- customer360_star_schema.jpg
-|   |-- dictionary.md
-|   |-- questions.md
-|   `-- scope.docx
-|
-|-- sql/
-|   |-- 01_create_databases.sql
-|   |-- 02_create_landing_table.sql
-|   |-- 03_data_profiling.sql
-|   |-- 04_create_stg_tables.sql
-|   |-- 05_load_stg_tables.sql
-|   |-- 06_verify_stg_tables.sql
-|   |-- 07_create_dwh_tables.sql
-|   |-- 08_load_dwh_tables.sql
-|   |-- 09_verify_dwh_tables.sql
-|   `-- 10_business_questions.sql
-|
-|-- ssis/
-|   |-- 01_load_raw_activity_extract.dtsx
-|   |-- 02_create_load_stg_tables.dtsx
-|   |-- 03_create_load_dwh_tables.dtsx
-|   `-- 04_master_package.dtsx
-|
-`-- README.md
+│
+├── data/
+│   └── raw/
+│       └── activity_extract.csv
+│
+├── docs/
+│   ├── BusinessQuestions_and_Answers.docx
+│   ├── customer360_data_quality_writeup.docx
+│   ├── customer360_star_schema.jpg
+│   ├── dictionary.md
+│   ├── questions.md
+│   └── scope.docx
+│
+├── sql/
+│   ├── 01_create_databases.sql
+│   ├── 02_create_landing_table.sql
+│   ├── 03_data_profiling.sql
+│   ├── 04_create_stg_tables.sql
+│   ├── 05_load_stg_tables.sql
+│   ├── 06_verify_stg_tables.sql
+│   ├── 07_create_dwh_tables.sql
+│   ├── 08_load_dwh_tables.sql
+│   ├── 09_verify_dwh_tables.sql
+│   └── 10_business_questions.sql
+│
+├── ssis/
+│   ├── 01_load_raw_activity_extract.dtsx
+│   ├── 02_create_load_stg_tables.dtsx
+│   ├── 03_create_load_dwh_tables.dtsx
+│   └── 04_master_package.dtsx
+│
+└── README.md
 ```
 
 ---
 
-## Running the Project
+## How to Run the Project
 
 ### Prerequisites
+
+The following tools are required:
 
 - Microsoft SQL Server
 - SQL Server Management Studio (SSMS)
 - Visual Studio with SSIS/SSDT
-- `activity_extract.csv`
+- Git
 
-### Steps
+### Execution
 
 1. Clone the repository.
-2. Confirm that `activity_extract.csv` is available in `data/raw/`.
-3. Run `01_create_databases.sql`.
-4. Run `02_create_landing_table.sql`.
-5. Open the Customer360 SSIS project in Visual Studio.
-6. Update the flat-file and SQL Server connection managers if required.
-7. Run `04_master_package.dtsx`.
-8. Run `06_verify_stg_tables.sql` to verify the staging load.
-9. Run `09_verify_dwh_tables.sql` to verify the dimensional warehouse.
-10. Run `10_business_questions.sql` to perform the business analysis.
+
+2. Confirm that the source file is available:
+
+   `data/raw/activity_extract.csv`
+
+3. Run:
+
+   `sql/01_create_databases.sql`
+
+4. Run:
+
+   `sql/02_create_landing_table.sql`
+
+5. Open the Customer 360 SSIS project in Visual Studio.
+
+6. Confirm that the flat-file connection points to the correct `activity_extract.csv` location.
+
+7. Confirm that the SQL Server connection managers point to the correct SQL Server instance.
+
+8. Execute:
+
+   `04_master_package.dtsx`
+
+   This runs the **Bronze → Silver → Gold** pipeline.
+
+9. Verify the Silver layer using:
+
+   `sql/06_verify_stg_tables.sql`
+
+10. Verify the Gold layer using:
+
+    `sql/09_verify_dwh_tables.sql`
+
+11. Run the business analysis:
+
+    `sql/10_business_questions.sql`
 
 ---
 
@@ -330,10 +412,10 @@ data-engineering-capstone-may-2026/
 | Technology | Purpose |
 |---|---|
 | SQL Server | Data storage and dimensional warehouse |
-| SSMS | SQL development and validation |
-| SSIS | ETL and workflow orchestration |
-| Visual Studio / SSDT | SSIS development |
-| SQL | Profiling, transformation and analysis |
+| SSMS | SQL development, profiling and validation |
+| SSIS | ETL and pipeline orchestration |
+| Visual Studio / SSDT | SSIS package development |
+| SQL | Profiling, transformation, loading and analysis |
 | draw.io | Dimensional model / ERD |
 | Git & GitHub | Version control and project submission |
 
@@ -341,6 +423,8 @@ data-engineering-capstone-may-2026/
 
 ## Summary
 
-The Customer 360 project demonstrates an end-to-end data engineering workflow from raw data ingestion to business analysis.
+The Customer 360 project implements a **Medallion Architecture** to transform raw retail banking activity into business-ready analytical data.
 
-The solution separates raw, staging, and dimensional warehouse layers, cleans and standardises source data, and models transaction and CRM activity at clearly defined grains. The final warehouse provides a structured Customer 360 view that supports customer, product, transaction, and CRM analysis while accounting for the main data quality issues identified in the source.
+The **Bronze layer** preserves the raw source data, the **Silver layer** separates and prepares customer, product, transaction, and CRM data, and the **Gold layer** contains the final dimensional warehouse.
+
+The final model uses shared dimensions and separate transaction and CRM fact tables with clearly defined grains. This provides a structured Customer 360 view for analysing customer demographics, product holdings, transaction behaviour, CRM engagement, and customer segmentation.
