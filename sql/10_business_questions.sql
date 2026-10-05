@@ -99,9 +99,7 @@ GO
 
 --   4. How many customer records look like data quality problems (e.g. missing contact details, duplicate identity)? Report the count and what you count as a "problem".
 
---   A problem is defined as a customer with missing email or mobile number,
---   missing identity/demographic details, unknown gender, missing location
---   information, or a duplicate client number.
+--   A problem is defined as a customer with missing email or mobile number, missing identity/demographic details, unknown gender, missing location, information, or a duplicate client number.
 
 WITH duplicate_clients AS (
     SELECT
