@@ -17,6 +17,16 @@ GROUP BY province
 ORDER BY customer_count DESC;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Eastern Cape has the largest customer base with 191 customers (12.87%).
+--   It is followed by KwaZulu Natal with 187 (12.60%) and Mpumalanga with 176 (11.86%).
+--   The remaining provinces are Western Cape 165 (11.12%), Gauteng 164 (11.05%),
+--   Free State 164 (11.05%), North West 158 (10.65%), Northern Cape 142 (9.57%),
+--   and Limpopo 137 (9.23%).
+-- ------------------------------------------------------------
+
 --   2. What is the age distribution of the customer base? Present it in age bands of your own choosing and justify the bands.
 
 --   Age bands used: Under 25, 25-34, 35-44, 45-54, 55-64 and 65+.
@@ -69,6 +79,20 @@ GROUP BY
 ORDER BY MIN(age);
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Under 25: 167 customers
+--   25-34:     270 customers
+--   35-44:     261 customers
+--   45-54:     224 customers
+--   55-64:     258 customers
+--   65+:       304 customers
+
+--   The 10-year bands provide simple life-stage groupings that are easy to compare.
+--   The largest group is 65+ with 304 customers, while Under 25 is the smallest with 167.
+-- ------------------------------------------------------------
+
 --   3. How many customers have signed up per month over the last two years? Is signup growth trending up, flat, or down?
 
 DECLARE @latest_signup_date DATE;
@@ -96,6 +120,16 @@ ORDER BY
     d.year_number,
     d.month_number;
 GO
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Monthly signups fluctuate but are broadly flat rather than showing a sustained upward
+--   or downward trend. Most complete months fall roughly between 28 and 49 signups.
+--   Examples include 49 signups in April 2024, 47 in February 2025 and 39 in May 2025.
+--   The first and last months in the two-year window should be interpreted carefully because
+--   they can represent partial periods.
+-- ------------------------------------------------------------
 
 --   4. How many customer records look like data quality problems (e.g. missing contact details, duplicate identity)? Report the count and what you count as a "problem".
 
@@ -127,6 +161,15 @@ WHERE
         WHERE d.client_number = c.client_number
     );
 GO
+
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   232 customers meet the data-quality problem definition used in this query.
+--   A problem includes missing email/mobile/identity/demographic/location information,
+--   gender recorded as unknown (U), or a duplicate client number.
+-- ------------------------------------------------------------
 
 -----------------------------------------------------------
 --   PRODUCTS
@@ -161,6 +204,15 @@ FROM (
 ) AS multi_product_customers;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Savings:       677 customers
+--   Credit Card:   672 customers
+--   Personal Loan: 647 customers
+--   591 customers hold more than one product type based on products linked through
+--   transaction activity.
+-- ------------------------------------------------------------
 
 --   6. What is the total and average account balance by product type?
 
@@ -175,6 +227,14 @@ GROUP BY product_type
 ORDER BY product_type;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Credit Card:   673 accounts, total balance 7,218,723.33, average balance 10,726.19
+--   Personal Loan: 649 accounts, total balance 15,446,189.02, average balance 23,799.98
+--   Savings:       678 accounts, total balance 26,100,944.34, average balance 38,496.97
+--   Savings has both the highest total balance and the highest average balance.
+-- ------------------------------------------------------------
 
 --   7. Which customers hold a Savings account but no Credit Card? Report the count, this is a cross-sell list.
 
@@ -233,6 +293,13 @@ INNER JOIN dwh_customer360.dbo.dwh_dim_client AS c
 ORDER BY c.client_number;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   382 customers hold a Savings account but no Credit Card based on products linked
+--   through transaction activity. The second result set returns the detailed cross-sell
+--   customer list with client number, name, email and mobile number.
+-- ------------------------------------------------------------
 
 --   8. What proportion of Credit Card accounts are within 90% of their credit limit?
 
@@ -261,6 +328,16 @@ WHERE product_type = 'Credit Card'
   AND credit_limit > 0;
 GO
 
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   There are 673 Credit Card accounts.
+--   68 accounts are at or above 90% of their credit limit.
+--   This represents 10.10% of Credit Card accounts.
+-- ------------------------------------------------------------
+
+
 -----------------------------------------------------------
 --   TRANSACTIONS
 -----------------------------------------------------------
@@ -288,6 +365,15 @@ ORDER BY
     t.transaction_type;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   The query returns monthly transaction value split by transaction type.
+--   Transaction activity increases strongly through 2025, with particularly high activity
+--   around July and August 2025. The extract does not show enough evidence of a repeating
+--   year-on-year seasonal pattern, so the increase is better described as changing activity
+--   volume rather than confirmed seasonality.
+-- ------------------------------------------------------------
 
 --   10. Which transaction channel handles the most transactions, and which handles the highest total value? (These may not be the same channel, explain why, if so.)
 
@@ -302,6 +388,16 @@ GROUP BY channel
 ORDER BY transaction_count DESC;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   POS handles the most transactions with 4,122 transactions.
+--   Online Banking has the highest net total transaction value at 6,011,468.17.
+--   POS has a net total of -13,419,659.15 and the highest absolute transaction activity
+--   at 16,553,061.05. The difference occurs because transaction counts measure frequency,
+--   while total value is affected by transaction size and the positive/negative direction
+--   of the transactions.
+-- ------------------------------------------------------------
 
 --   11. Define an "active customer" using transaction recency, then report how many customers are active versus not active as of the latest date in the data.
 
@@ -344,6 +440,14 @@ FROM customer_status
 GROUP BY activity_status;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Active is defined as having at least one transaction within the last 90 days relative
+--   to the latest transaction date in the extract.
+--   Active customers:     20
+--   Not active customers: 1,464
+-- ------------------------------------------------------------
 
 --   12. Who are the top 20 customers by total transaction value in the last 12 months, using the latest transaction date in the data?
 
@@ -376,6 +480,34 @@ GROUP BY
 ORDER BY total_transaction_value DESC;
 GO
 
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   The top 20 customers by net transaction value in the last 12 months are:
+--   1. CL01447 Nadia Pillay
+--   2. CL00276 David Mabaso
+--   3. CL00615 Sipho Abrahams
+--   4. CL00479 Ayesha De Villiers
+--   5. CL00554 Karabo De Villiers
+--   6. CL00268 Kyle Petersen
+--   7. CL00544 Mpho Petersen
+--   8. CL00269 Ayesha Smith
+--   9. CL00022 Ilse Nkosi
+--   10. CL01271 Ilse Smith
+--   11. CL01237 Grace Botha
+--   12. CL01413 Ayesha Kruger
+--   13. CL01395 Riaan Nkosi
+--   14. CL00444 David De Villiers
+--   15. CL01097 Marike Adams
+--   16. CL00329 David Mahlangu
+--   17. CL00314 Chane Mabaso
+--   18. CL00093 Sam Dlamini
+--   19. CL01213 Marike Naidoo
+--   20. CL01221 Karabo Naidoo
+--   The query uses the latest transaction date in the static extract as the reference date.
+-- ------------------------------------------------------------
+
 -----------------------------------------------------------
 --   CRM / ENGAGEMENT
 -----------------------------------------------------------
@@ -400,6 +532,16 @@ GROUP BY interaction_type
 ORDER BY interaction_type;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Complaint:           1.31 average interactions per customer
+--   Feedback:            1.16
+--   Fraud Report:        1.10
+--   Product Application: 1.31
+--   Query:                1.80
+--   Query has the highest average number of interactions per customer.
+-- ------------------------------------------------------------
 
 --   14. Which channel is most used for complaints specifically, versus other interaction types?
 
@@ -416,6 +558,17 @@ ORDER BY
     interaction_count DESC;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Call is the most-used channel for Complaints with 195 interactions.
+--   The leading channels for the other interaction types are:
+--   Feedback - WhatsApp (107)
+--   Fraud Report - WhatsApp (50)
+--   Product Application - Email (193)
+--   Query - Chat (434)
+--   This shows that the preferred channel differs by interaction type.
+-- ------------------------------------------------------------
 
 --   15. What is the resolution rate (`resolved_flag = Y`) by channel? Which channel resolves the least, and could that be sample-size noise rather than a real difference?
 
@@ -441,6 +594,21 @@ FROM dwh_customer360.dbo.dwh_fact_crm_interaction
 GROUP BY channel
 ORDER BY resolution_rate_percentage ASC;
 GO
+
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   WhatsApp: 74.58% (663 of 889)
+--   Call:     74.77% (664 of 888)
+--   Email:    76.02% (691 of 909)
+--   Branch:   76.27% (688 of 902)
+--   Chat:     77.17% (703 of 911)
+--   WhatsApp has the lowest resolution rate. However, the rates are close and the channel
+--   sample sizes are similar, so the small differences should not automatically be treated
+--   as evidence that one channel performs materially worse than another.
+-- ------------------------------------------------------------
+
 
 -----------------------------------------------------------
 --   COMBINED / SEGMENTATION
@@ -478,6 +646,16 @@ GROUP BY value_tier
 ORDER BY value_tier;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Tier 1 - Low Value:       371 customers, total transaction value 1,869,940.36
+--   Tier 2 - Medium Value:    371 customers, total transaction value 10,471,181.45
+--   Tier 3 - High Value:      371 customers, total transaction value 17,559,136.36
+--   Tier 4 - Very High Value: 371 customers, total transaction value 30,181,692.52
+--   Quartiles were used so that customers are divided into four equally sized groups
+--   based on total absolute transaction activity.
+-- ------------------------------------------------------------
 
 --   17. Build a simple customer lifecycle segmentation (e.g. New / Active / At risk / Dormant) using signup date and activity recency. State your thresholds and justify them. Report the customer count per segment.
 
@@ -539,6 +717,21 @@ ORDER BY
     END;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   Lifecycle thresholds:
+--   New: signed up within the last 90 days.
+--   Active: last transaction within the last 90 days.
+--   At risk: last transaction 91-180 days ago.
+--   Dormant: last transaction more than 180 days ago or never transacted.
+--   Results:
+--   Active:  20 customers
+--   At risk: 876 customers
+--   Dormant: 588 customers
+--   No customers fall into New using the latest activity date and the stated precedence.
+--   These thresholds separate recent activity from increasing periods of inactivity.
+-- ------------------------------------------------------------
 
 --   18. Is there a relationship between number of CRM interactions and transaction value? (A simple grouped comparison is enough, this is not a statistics course.)
 
@@ -594,6 +787,20 @@ ORDER BY
     END;
 GO
 
+
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   0 interactions:   53 customers, average transaction value 45,658.87
+--   1-2 interactions: 566 customers, average transaction value 40,692.07
+--   3-5 interactions: 750 customers, average transaction value 40,507.23
+--   6+ interactions:  115 customers, average transaction value 36,955.62
+--   Average transaction value decreases as CRM interaction frequency increases in these
+--   groups. This suggests a weak negative relationship in this extract, but it does not
+--   establish that CRM interactions cause lower transaction value.
+-- ------------------------------------------------------------
+
+
 -----------------------------------------------------------
 --   STRETCH
 -----------------------------------------------------------
@@ -632,6 +839,16 @@ FROM monthly_retention
 ORDER BY activity_month;
 GO
 
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   The query produces a month-by-month retention view using transaction activity.
+--   Retention generally rises as the active customer base grows, reaching 71.13% in
+--   June 2025 and 75.34% in July 2025.
+--   Retention then falls sharply after August 2025 because transaction activity becomes
+--   very sparse in the remaining months of the static extract. Those final months should
+--   therefore be interpreted with caution.
+-- ------------------------------------------------------------
 
 --   20. Identify accounts with unusual transaction patterns (e.g. a sudden spike relative to the account's own history) and explain what additional data you'd want to confirm whether it's fraud?
 
@@ -665,6 +882,16 @@ WHERE transaction_value >= average_account_transaction * 3
 ORDER BY times_above_average DESC;
 GO
 
---   Additional data that would help assess possible fraud includes transaction timestamps,
---   merchant details, transaction location, device information, IP address, failed transaction
---   attempts, account login activity and confirmed fraud or chargeback records.
+-- ------------------------------------------------------------
+-- ANSWER
+--
+--   12 transactions were identified at three or more times the account's own average.
+--   The flagged accounts are:
+--   AC000005, AC000486, AC000331, AC001308, AC001026, AC001368,
+--   AC001544, AC001666, AC000418, AC001591, AC001806 and AC000684.
+--   These are unusual transactions, not confirmed fraud.
+--   Additional information such as exact timestamps, merchant details, transaction location,
+--   device/IP information, authentication results, failed attempts, login activity,
+--   chargebacks and confirmed fraud labels would be needed for a stronger fraud assessment.
+-- ------------------------------------------------------------
+
