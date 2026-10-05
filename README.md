@@ -1,225 +1,346 @@
-# Customer 360 Intern Project
+# Customer 360 Data Engineering Project
 
-A self-contained data engineering capstone for the April-May 2026 intern
-intake: build a star-schema data warehouse from a single raw banking
-extract, using SSIS and SQL Server.
+## Overview
 
-**Due date: 27 September 2026.** Open your pull request by this date, see
-[How to submit your work](#how-to-submit-your-work).
+The Customer 360 project is an end-to-end data engineering solution for a fictional retail bank. The project transforms a raw banking activity extract into a dimensional data warehouse that supports analysis across customers, products, transactions, and CRM interactions.
 
-## Background
+The solution was developed using **SQL Server, SSIS, SSMS, Visual Studio/SSDT, SQL, and draw.io**.
 
-You work in the data team of a South African retail bank. The bank's
-systems were never designed to talk to each other, and the only thing
-anyone has ever managed to get out of them is a single flat export: one
-big activity file covering client details, product enrollments, CRM
-contact history, and transactions, all mixed together. Nobody has ever
-built a proper warehouse for this data. Reporting today is a person
-manually pulling spreadsheets.
+The source file contains three types of customer activity:
 
-You have been asked to build the first version of a Customer 360 data
-warehouse: a dimensional model that the BI team can connect Power BI or
-Tableau to, fed by a repeatable SSIS ETL pipeline.
+- Product Enrollment
+- CRM Interaction
+- Transaction
 
-## Objective
+These events are loaded into a raw landing layer, separated into staging tables, cleaned and transformed, and then loaded into the dimensional data warehouse.
 
-Design and build a star schema data warehouse in SQL Server, loaded by
-SSIS, from the single raw extract provided in `data/raw/`. Use it to
-answer the business questions in `docs/questions.md`.
+---
 
-This is a skills project. The point is not to reach one correct answer,
-it is to show that you can:
+## Architecture
 
-* Profile a messy, denormalized source file and work out what is
-  actually in it
-* Recognize the different entities and event types hiding inside a
-  single extract, and design sensible keys for each
-* Design a sensible dimensional model: grain, dimensions, facts, and how
-  they relate
-* Build an SSIS package that lands, splits, and transforms the data
-* Write SQL against your model to answer real business questions
-* Explain and justify the decisions you made
+The project follows a layered architecture:
 
-There is no single correct schema. Two interns can both pass with
-different, well justified designs.
-
-## Repo structure
-
-```
-README.md                     this file, the full brief
-data/raw/
-    activity_extract.csv       the one raw source file, comma delimited
-docs/
-    dictionary.md               column level definitions of the raw extract
-    questions.md                 the questions to answer with SQL against your model
-sql/
-    00_create_tables.sql        DDL for the landing/source schema
+```text
+activity_extract.csv
+        |
+        v
+Raw / Landing Layer
+stg_activity_extract
+        |
+        v
+Staging Layer
+stg_dim_client
+stg_dim_product
+stg_fact_transaction
+stg_fact_crm_interaction
+        |
+        v
+Cleaning & Transformation
+        |
+        v
+Dimensional Data Warehouse
+dim_client
+dim_date
+dim_product
+fact_transaction
+fact_crm_interaction
+        |
+        v
+Business Analysis
 ```
 
-Keep this same short, flat naming style for anything you add: lowercase,
-underscores, no spaces, no version numbers in the file name (git already
-tracks versions for you).
+### Raw / Landing Layer
 
-## What you are given
+The raw banking extract is first loaded into:
 
-`data/raw/activity_extract.csv` is a single comma delimited file, exactly
-as it came out of the source system, not cleaned and not split into
-tables. Every row is one event for one client. An `event_type` column
-tells you whether the row is a product enrollment, a CRM interaction, or
-a transaction, and a different subset of the remaining columns is
-populated depending on which type it is. Client details such as name,
-contact details, and signup date repeat on every row belonging to that
-client.
+```text
+stg_customer360.dbo.stg_activity_extract
+```
 
-There are no ready made table identifiers in this file. There is a
-client_number and an account_number, because a real extract still needs
-something to key on, but there is nothing marking out separate
-enrollment, interaction, or transaction records. Working out how to key
-and deduplicate each entity is part of the exercise.
+The purpose of this layer is to preserve the source data with minimal transformation before cleaning and modelling.
 
-See `docs/dictionary.md` for a full column reference. Treat this as a
-real source system handoff. Nobody has told you what is wrong with it.
-Profiling it is part of the task.
+### Staging Layer
 
-`sql/00_create_tables.sql` gives you a `CREATE TABLE` statement for a
-single `source` schema table matching the raw file, so you have a
-consistent landing point to import into via SSIS, using a Flat File
-Source. You are not required to use it as is. Adjust data types if your
-profiling says otherwise, and justify the change.
+The staging layer separates the source data into the main business entities and processes:
 
-## What you must build
+```text
+stg_dim_client
+stg_dim_product
+stg_fact_transaction
+stg_fact_crm_interaction
+```
 
-### ETL (SSIS)
+The source `event_type` is used to separate Product Enrollment, CRM Interaction, and Transaction records.
 
-* One or more SSIS packages, built in Visual Studio or SSDT with the
-  SSIS extension, that load the raw extract into SQL Server and populate
-  your dimensional model.
-* Use a staging layer, a raw load with minimal transformation, separate
-  from the final dimensional model. Do not transform everything in a
-  single monolithic step.
-* Use a Conditional Split, or an equivalent approach, to separate the
-  three event types out of the single source file before building your
-  dimensions and facts from them.
-* Handle at least: data type conversion, whitespace and casing cleanup,
-  and invalid or missing values. Decide for yourself what counts as
-  invalid here, profile the data first.
-* Sequence your control flow correctly. A fact cannot load before the
-  dimension it depends on exists.
-* Your packages must be re runnable without duplicating data. Truncate
-  and reload is acceptable for this exercise. Incremental loading is a
-  bonus, not a requirement.
+### Dimensional Data Warehouse
 
-### Dimensional model
+The final warehouse contains three dimensions and two fact tables:
 
-Design a star schema, or a snowflake schema if you can justify it, in a
-`dw` schema in SQL Server. At minimum you will need:
+**Dimensions**
+- `dim_client`
+- `dim_date`
+- `dim_product`
 
-* A date dimension. Build it, do not carry raw date strings into your
-  facts.
-* A client dimension, built by deduplicating the repeated client details
-  in the source file.
-* A product dimension, built from the enrollment style rows.
-* At least two fact tables at different, clearly stated grains, for
-  example one fact per transaction and one fact per CRM interaction. You
-  may combine them if you can justify the resulting grain.
+**Facts**
+- `fact_transaction`
+- `fact_crm_interaction`
 
-You decide: how you generate surrogate keys for each dimension, since the
-source file does not hand you any, which attributes belong on which
-dimension, whether the client dimension needs to track history (SCD Type
-1 versus Type 2, pick one and be able to explain why), and how you handle
-the data quality issues you find, whether that is rejecting, correcting,
-or flagging them with an unknown member row. All are valid approaches,
-pick one and justify it.
+Transactions and CRM interactions are stored in separate fact tables because they represent different business processes and have different grains.
 
-Deliver an entity relationship diagram of your final model, built in
-[draw.io](https://app.diagrams.net/) (diagrams.net), alongside the DDL.
-Export it as a PNG or PDF and commit both the export and the `.drawio`
-source file.
+---
 
-### SQL analysis
+## Dimensional Model
 
-Write the SQL queries that answer every question in `docs/questions.md`,
-run against your dimensional model, not the raw or staging tables.
-Include the SQL and the result for each.
+The dimensional model is structured around the following tables:
 
-## Tech stack
+### `dim_client`
 
-* SQL Server, Developer or Express edition, plus SQL Server Management
-  Studio
-* SQL Server Integration Services, via SSDT or Visual Studio
-* draw.io (diagrams.net) for the entity relationship diagram
+Contains one row per customer and includes customer details such as:
 
-## How to submit your work
+- Client number
+- Name
+- Email
+- Mobile number
+- Date of birth
+- Gender
+- Province
+- City
+- Signup date
 
-1. Fork this repo to your own GitHub account (or create a branch if you
-   already have write access).
-2. Clone your fork locally: `git clone <your-fork-url>`.
-3. Create a branch for your work, named after you, for example
-   `git checkout -b intern/thabo-m`.
-4. Commit as you go, in small steps, with clear messages, for example
-   `git commit -m "Add dw schema DDL for client and date dimensions"`.
-   Do not commit one giant "final version" at the end.
-5. Push your branch: `git push origin intern/thabo-m`.
-6. Open a pull request against this repo's `main` branch when you are
-   ready for review. Put your data quality note and a short summary of
-   your design decisions in the pull request description.
+A surrogate `client_key` is used in the warehouse.
 
-Commit your SSIS project files, your DDL scripts, your SQL answer
-scripts, your draw.io diagram, and your data quality write-up. Do not
-commit SQL Server backup files (`.bak`) or anything containing real
-credentials or connection strings with passwords in them.
+The client dimension follows a **Type 1 SCD approach**, as the project focuses on the current customer view rather than maintaining historical versions of customer attributes.
 
-## Deliverables checklist
+### `dim_date`
 
-* `dw` schema DDL, dimensions and facts, with comments explaining key
-  design decisions
-* Entity relationship diagram of the final dimensional model (draw.io
-  source file plus a PNG or PDF export)
-* SSIS project, package files and project file
-* A short data quality note describing what you found in the raw file
-  and how you handled each issue
-* SQL scripts answering every question in `docs/questions.md`, with
-  results
-* A short write-up explaining how to run your pipeline end to end
+Provides standard calendar attributes including:
 
-## Suggested timeline
+- Full date
+- Day
+- Month
+- Month name
+- Quarter
+- Year
+- Day of week
 
-Two weeks, structured roughly as follows.
+The transaction and CRM fact tables reference the date dimension using `date_key`.
 
-Days one and two: profile the raw extract, document the data quality
-issues you find, and sketch the dimensional model on paper or in draw.io
-before writing any DDL.
+### `dim_product`
 
-Days three and four: build the staging load in SSIS, and write the `dw`
-schema DDL.
+Contains product and account information including:
 
-Days five to seven: build the dimension and fact loads in SSIS, and test
-the pipeline end to end.
+- Account number
+- Product type
+- Account status
+- Credit limit
+- Loan amount
+- Account balance
 
-Days eight and nine: write and validate the SQL for every question.
+A surrogate `product_key` is used to link products to transaction activity.
 
-Day ten: write up your data quality notes, finish the entity relationship
-diagram, and open your pull request.
+### `fact_transaction`
 
-## Evaluation criteria
+**Grain:** One row per transaction event.
 
-You will be assessed on the following.
+Contains:
 
-**Correctness.** Does the model actually answer the business questions,
-and do the numbers make sense? For example, no double counted
-transactions from a bad join.
+- Client key
+- Product key
+- Date key
+- Transaction type
+- Channel
+- Amount
 
-**Modelling judgment.** Sensible grain, sensible key choices, dimensions
-and facts used correctly, and evidence that the design followed from
-profiling the data rather than from whichever join happened to work
-first.
+### `fact_crm_interaction`
 
-**ETL craftsmanship.** Is the SSIS package readable, does it fail loudly
-on bad data rather than silently succeeding, and is it re runnable.
+**Grain:** One row per unique CRM interaction.
 
-**Data quality handling.** Did you find the real issues in the file, and
-did you make and justify a defensible decision about each one, rather
-than deleting anything that looked unusual.
+Contains:
 
-**Communication.** Can you explain your design decisions to a non
-technical stakeholder in your write up and pull request description.
+- Client key
+- Date key
+- Channel
+- Interaction type
+- Resolved flag
+
+The two fact tables share common dimensions where appropriate, providing a consistent Customer 360 view.
+
+---
+
+## ETL Process
+
+The ETL process was developed using **SQL Server Integration Services (SSIS)**.
+
+The solution contains the following packages:
+
+```text
+01_load_raw_activity_extract.dtsx
+02_create_load_stg_tables.dtsx
+03_create_load_dwh_tables.dtsx
+04_master_package.dtsx
+```
+
+The master package controls the execution order:
+
+```text
+Load Raw Data
+      |
+      v
+Create / Load Staging
+      |
+      v
+Create / Load Data Warehouse
+```
+
+Dimensions are loaded before the fact tables so that the required surrogate keys are available when fact records are inserted.
+
+The ETL process performs transformations such as:
+
+- Trimming whitespace
+- Handling blank and NULL values
+- Converting data types
+- Standardising text values
+- Deduplicating customer records
+- Deduplicating CRM interactions
+- Performing dimension key lookups
+- Handling unmatched product records
+
+---
+
+## Data Quality
+
+The raw source contained **21,500 activity records** across **1,484 distinct clients**.
+
+The source consisted of:
+
+| Event Type | Records |
+|---|---:|
+| Transaction | 15,000 |
+| CRM Interaction | 4,500 |
+| Product Enrollment | 2,000 |
+| **Total** | **21,500** |
+
+Source profiling identified several data quality issues, including:
+
+- Missing email addresses
+- Missing mobile numbers
+- Missing or unknown gender values
+- Repeated customer information across activity rows
+- One exact duplicate CRM interaction
+- Transaction accounts without corresponding Product Enrollment records
+- Positive, negative, and zero transaction amounts
+
+The ETL process was designed to preserve valid business activity rather than remove records unnecessarily.
+
+Customers are deduplicated using `client_number`, the duplicate CRM interaction is removed, blank values are handled appropriately, and unmatched transaction accounts can be linked to an **Unknown Product** member.
+
+A detailed discussion of the findings and handling decisions is included in the project data quality document.
+
+---
+
+## Business Analysis
+
+The dimensional warehouse is used to answer the supplied Customer 360 business questions.
+
+The analysis covers:
+
+- Customer distribution and demographics
+- Customer signup trends
+- Product holdings
+- Cross-selling opportunities
+- Account balances and credit utilisation
+- Transaction trends and channel usage
+- Active and inactive customers
+- CRM interactions and resolution rates
+- Customer value segmentation
+- Customer lifecycle segmentation
+- Customer retention
+- Unusual transaction activity
+
+The analysis is performed against the dimensional model rather than the raw or staging data.
+
+---
+
+## Repository Structure
+
+```text
+data-engineering-capstone-may-2026/
+|
+|-- data/
+|   `-- raw/
+|       `-- activity_extract.csv
+|
+|-- docs/
+|   |-- BusinessQuestions_and_Answers.docx
+|   |-- customer360_data_quality_writeup.docx
+|   |-- customer360_star_schema.jpg
+|   |-- dictionary.md
+|   |-- questions.md
+|   `-- scope.docx
+|
+|-- sql/
+|   |-- 01_create_databases.sql
+|   |-- 02_create_landing_table.sql
+|   |-- 03_data_profiling.sql
+|   |-- 04_create_stg_tables.sql
+|   |-- 05_load_stg_tables.sql
+|   |-- 06_verify_stg_tables.sql
+|   |-- 07_create_dwh_tables.sql
+|   |-- 08_load_dwh_tables.sql
+|   |-- 09_verify_dwh_tables.sql
+|   `-- 10_business_questions.sql
+|
+|-- ssis/
+|   |-- 01_load_raw_activity_extract.dtsx
+|   |-- 02_create_load_stg_tables.dtsx
+|   |-- 03_create_load_dwh_tables.dtsx
+|   `-- 04_master_package.dtsx
+|
+`-- README.md
+```
+
+---
+
+## Running the Project
+
+### Prerequisites
+
+- Microsoft SQL Server
+- SQL Server Management Studio (SSMS)
+- Visual Studio with SSIS/SSDT
+- `activity_extract.csv`
+
+### Steps
+
+1. Clone the repository.
+2. Confirm that `activity_extract.csv` is available in `data/raw/`.
+3. Run `01_create_databases.sql`.
+4. Run `02_create_landing_table.sql`.
+5. Open the Customer360 SSIS project in Visual Studio.
+6. Update the flat-file and SQL Server connection managers if required.
+7. Run `04_master_package.dtsx`.
+8. Run `06_verify_stg_tables.sql` to verify the staging load.
+9. Run `09_verify_dwh_tables.sql` to verify the dimensional warehouse.
+10. Run `10_business_questions.sql` to perform the business analysis.
+
+---
+
+## Technologies Used
+
+| Technology | Purpose |
+|---|---|
+| SQL Server | Data storage and dimensional warehouse |
+| SSMS | SQL development and validation |
+| SSIS | ETL and workflow orchestration |
+| Visual Studio / SSDT | SSIS development |
+| SQL | Profiling, transformation and analysis |
+| draw.io | Dimensional model / ERD |
+| Git & GitHub | Version control and project submission |
+
+---
+
+## Summary
+
+The Customer 360 project demonstrates an end-to-end data engineering workflow from raw data ingestion to business analysis.
+
+The solution separates raw, staging, and dimensional warehouse layers, cleans and standardises source data, and models transaction and CRM activity at clearly defined grains. The final warehouse provides a structured Customer 360 view that supports customer, product, transaction, and CRM analysis while accounting for the main data quality issues identified in the source.
